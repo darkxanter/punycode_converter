@@ -33,6 +33,7 @@ abstract class Punycode {
   /// converted to Unicode.
   static String domainDecode(String domain) {
     return _mapDomain(domain, (part) {
+      _checkDomainLabelLength(part);
       return part.startsWith('xn--')
           ? decode(part.substring(4).toLowerCase())
           : part;
@@ -48,7 +49,10 @@ abstract class Punycode {
   static String domainEncode(String domain) {
     final regexNonASCII = RegExp(r'[^\0-\x7E]'); // non-ASCII chars
     return _mapDomain(domain, (part) {
-      return regexNonASCII.hasMatch(part) ? 'xn--${encode(part)}' : part;
+      final encodedLabel =
+          regexNonASCII.hasMatch(part) ? 'xn--${encode(part)}' : part;
+      _checkDomainLabelLength(encodedLabel);
+      return encodedLabel;
     });
   }
 
@@ -330,6 +334,12 @@ abstract class Punycode {
     }
     return k + (_baseMinusTMin + 1) * delta ~/ (delta + _skew);
   }
+
+  static void _checkDomainLabelLength(String label) {
+    // RFC1034: Domain labels must be 63 characters or less
+    // https://datatracker.ietf.org/doc/html/rfc1034
+    if (label.length > 63) throw PunycodeException.domainLabelTooLong(label);
+  }
 }
 
 class PunycodeException implements Exception {
@@ -340,8 +350,16 @@ class PunycodeException implements Exception {
       PunycodeException._('Illegal input >= 0x80 (not a basic code point)');
   factory PunycodeException.invalidInput() =>
       PunycodeException._('Invalid input');
+  factory PunycodeException.domainLabelTooLong(String label) =>
+      PunycodeException._(
+        'A domain label must be not longer than 63 octets. '
+        'Actual length ${label.length}, label "$label".',
+      );
 
   const PunycodeException._(this.message);
+
+  @override
+  String toString() => 'PunycodeException: $message';
 }
 
 extension PunycodeUriExtension on Uri {

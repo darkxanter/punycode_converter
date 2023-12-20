@@ -59,4 +59,33 @@ void main() {
       });
     }
   });
+
+  group('RFC 1054', () {
+    final testCase = TestCase(
+      decoded:
+          "абвгдеёжзийклмнопрстуфхцчшщъыьэюяабвгдеёжзийклмнопрстуфхцчшщъыьэюя.рф",
+      encoded:
+          "xn--80aacbdcedfegfhgihjikjlkmlnmonpoqprqsrtsutvuwvxwyxzy0az1a0a2a1a3a2a4a3a5a4a6a5a6e6a.xn--p1ai",
+    );
+
+    final matcher = isA<PunycodeException>().having(
+      (e) => e.message,
+      'message',
+      startsWith('A domain label must be not longer than 63 octets.'),
+    );
+
+    test('Check domain length when encoding', () {
+      expect(
+        () => Punycode.domainEncode(testCase.decoded),
+        throwsA(matcher),
+      );
+    });
+
+    test('Check domain length when decoding', () {
+      expect(
+        () => Punycode.domainDecode(testCase.encoded),
+        throwsA(matcher),
+      );
+    });
+  });
 }
