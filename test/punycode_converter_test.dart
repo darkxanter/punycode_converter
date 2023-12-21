@@ -60,15 +60,15 @@ void main() {
     }
   });
 
-  group('RFC 1054', () {
-    final testCase = TestCase(
+  group('Domain label validation', () {
+    final lengthTestCase = TestCase(
       decoded:
-          "абвгдеёжзийклмнопрстуфхцчшщъыьэюяабвгдеёжзийклмнопрстуфхцчшщъыьэюя.рф",
+          'абвгдеёжзийклмнопрстуфхцчшщъыьэюяабвгдеёжзийклмнопрстуфхцчшщъыьэюя.рф',
       encoded:
-          "xn--80aacbdcedfegfhgihjikjlkmlnmonpoqprqsrtsutvuwvxwyxzy0az1a0a2a1a3a2a4a3a5a4a6a5a6e6a.xn--p1ai",
+          'xn--80aacbdcedfegfhgihjikjlkmlnmonpoqprqsrtsutvuwvxwyxzy0az1a0a2a1a3a2a4a3a5a4a6a5a6e6a.xn--p1ai',
     );
 
-    final matcher = isA<PunycodeException>().having(
+    final domainLabelTooLongMatcher = isA<PunycodeException>().having(
       (e) => e.message,
       'message',
       startsWith('A domain label must be not longer than 63 octets.'),
@@ -76,15 +76,57 @@ void main() {
 
     test('Check domain length when encoding', () {
       expect(
-        () => Punycode.domainEncode(testCase.decoded),
-        throwsA(matcher),
+        () => Punycode.domainEncode(lengthTestCase.decoded),
+        throwsA(domainLabelTooLongMatcher),
       );
     });
 
     test('Check domain length when decoding', () {
       expect(
-        () => Punycode.domainDecode(testCase.encoded),
-        throwsA(matcher),
+        () => Punycode.domainDecode(lengthTestCase.encoded),
+        throwsA(domainLabelTooLongMatcher),
+      );
+    });
+
+    final malformedDomainLabelMatcher = isA<PunycodeException>().having(
+      (e) => e.message,
+      'message',
+      contains('malformed'),
+    );
+
+    for (final testCase in malformedTestCases) {
+      test('Encode ${testCase.name}', () {
+        expect(
+          () => Punycode.domainEncode(testCase.decoded),
+          throwsA(malformedDomainLabelMatcher),
+        );
+      });
+    }
+
+    for (final testCase in malformedTestCases) {
+      test('Decode ${testCase.name}', () {
+        expect(
+          () => Punycode.domainDecode(testCase.encoded),
+          throwsA(malformedDomainLabelMatcher),
+        );
+      });
+    }
+
+    final emptyDomainMatcher = isA<PunycodeException>().having(
+      (e) => e.message,
+      'message',
+      equals('A domain must be not empty.'),
+    );
+
+    test('Empty domain', () {
+      final domain = '';
+      expect(
+        () => Punycode.domainEncode(domain),
+        throwsA(emptyDomainMatcher),
+      );
+      expect(
+        () => Punycode.domainDecode(domain),
+        throwsA(emptyDomainMatcher),
       );
     });
   });

@@ -32,11 +32,12 @@ abstract class Punycode {
   /// it doesn't matter if you call it on a string that has already been
   /// converted to Unicode.
   static String domainDecode(String domain) {
-    return _mapDomain(domain, (part) {
-      _checkDomainLabelLength(part);
-      return part.startsWith('xn--')
-          ? decode(part.substring(4).toLowerCase())
-          : part;
+    return _mapDomain(domain, (label) {
+      final decodedLabel = label.startsWith('xn--')
+          ? decode(label.substring(4).toLowerCase())
+          : label;
+      _validateLabel(label, decodedLabel);
+      return decodedLabel;
     });
   }
 
@@ -48,10 +49,10 @@ abstract class Punycode {
   /// ASCII.
   static String domainEncode(String domain) {
     final regexNonASCII = RegExp(r'[^\0-\x7E]'); // non-ASCII chars
-    return _mapDomain(domain, (part) {
+    return _mapDomain(domain, (label) {
       final encodedLabel =
-          regexNonASCII.hasMatch(part) ? 'xn--${encode(part)}' : part;
-      _checkDomainLabelLength(encodedLabel);
+          regexNonASCII.hasMatch(label) ? 'xn--${encode(label)}' : label;
+      _validateLabel(encodedLabel, label);
       return encodedLabel;
     });
   }
@@ -240,7 +241,7 @@ abstract class Punycode {
     var result = '';
     if (parts.length > 1) {
       // In email addresses, only the domain name should be encoded. Leave
-      // the local part (i.e. everything up to `@`) intact.
+      // the local label (i.e. everything up to `@`) intact.
       result = '${parts[0]}@';
       domain = parts[1];
     }
@@ -249,8 +250,17 @@ abstract class Punycode {
     ); // RFC 3490 separators
     domain = domain.replaceAll(regexSeparators, '\x2E');
     final labels = domain.split('.');
+    final hasLastDot = labels.last == '';
+    if (hasLastDot) {
+      // drop last empty label
+      // workaround to simplify domain labels validation
+      labels.removeLast();
+    }
+
+    if (labels.isEmpty) throw PunycodeException.domainIsEmpty();
+
     final encoded = labels.map(callback).join('.');
-    return result + encoded;
+    return result + encoded + (hasLastDot ? '.' : '');
   }
 
   /// Creates an array containing the numeric code points of each Unicode
@@ -335,10 +345,20 @@ abstract class Punycode {
     return k + (_baseMinusTMin + 1) * delta ~/ (delta + _skew);
   }
 
-  static void _checkDomainLabelLength(String label) {
-    // RFC1034: Domain labels must be 63 characters or less
+  static void _validateLabel(String encoded, String decoded) {
+    // RFC 1034: Domain labels must be 63 characters or less
     // https://datatracker.ietf.org/doc/html/rfc1034
-    if (label.length > 63) throw PunycodeException.domainLabelTooLong(label);
+    if (encoded.length > 63) {
+      throw PunycodeException.domainLabelTooLong(encoded, decoded);
+    }
+    // RFC 1035: The labels must follow the rules for ARPANET host names.  They must
+    // start with a letter, end with a letter or digit, and have as interior
+    // characters only letters, digits, and hyphen.
+    // https://datatracker.ietf.org/doc/html/rfc1035
+    final domainLabelRegex = RegExp('^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]\$');
+    if (!domainLabelRegex.hasMatch(encoded)) {
+      throw PunycodeException.malformedDomainLabel(encoded, decoded);
+    }
   }
 }
 
@@ -346,14 +366,29 @@ class PunycodeException implements Exception {
   final String message;
 
   factory PunycodeException.overflow() => PunycodeException._('overflow');
+
   factory PunycodeException.notBasic() =>
       PunycodeException._('Illegal input >= 0x80 (not a basic code point)');
+
   factory PunycodeException.invalidInput() =>
       PunycodeException._('Invalid input');
-  factory PunycodeException.domainLabelTooLong(String label) =>
+
+  factory PunycodeException.domainLabelTooLong(
+          String encoded, String decoded) =>
       PunycodeException._(
         'A domain label must be not longer than 63 octets. '
-        'Actual length ${label.length}, label "$label".',
+        'Actual length ${encoded.length}, label "$decoded" ($encoded).',
+      );
+
+  factory PunycodeException.domainIsEmpty() =>
+      PunycodeException._('A domain must be not empty.');
+
+  factory PunycodeException.malformedDomainLabel(
+          String encoded, String decoded) =>
+      PunycodeException._(
+        'The domain label "$decoded" ($encoded) is malformed. '
+        'The labels must start with a letter, end with a letter or digit, '
+        'and have as interior characters only letters, digits, and hyphen.',
       );
 
   const PunycodeException._(this.message);
@@ -364,5 +399,6 @@ class PunycodeException implements Exception {
 
 extension PunycodeUriExtension on Uri {
   Uri get punyEncoded => Punycode.uriEncode(this);
+
   Uri get punyDecoded => Punycode.uriDecode(this);
 }

@@ -151,7 +151,6 @@ final testDomains = [
     encoded: "example.com",
   ),
   TestCase(
-    // https://github.com/bestiejs/punycode.js/issues/17
     decoded: "example.com.",
     encoded: "example.com.",
   ),
@@ -180,11 +179,11 @@ final testDomains = [
     decoded: "💩.la",
     encoded: "xn--ls8h.la",
   ),
-  TestCase(
-    desc: "Non-printable ASCII",
-    decoded: "\x00\x01\x02foo.bar",
-    encoded: "\x00\x01\x02foo.bar",
-  ),
+  // TestCase(
+  //   desc: "Non-printable ASCII",
+  //   decoded: "\x00\x01\x02foo.bar",
+  //   encoded: "\x00\x01\x02foo.bar",
+  // ),
 ];
 
 final testSeparators = [
@@ -231,4 +230,15 @@ final testUris = [
     decoded: Uri.parse('http://example.com/some-page'),
     encoded: Uri.parse('http://example.com/some-page'),
   ),
+];
+
+final malformedTestCases = [
+  TestCase(encoded: 'foo_bar.com', decoded: 'foo_bar.com'),
+  TestCase(encoded: 'foo%bar.com', decoded: 'foo%bar.com'),
+  TestCase(encoded: 'foobar-.com', decoded: 'foobar-.com'),
+  TestCase(encoded: '1foobar.com', decoded: '1foobar.com'),
+  TestCase(encoded: '1.com', decoded: "1.com"),
+  TestCase(encoded: 'foo bar.com', decoded: 'foo bar.com'),
+  TestCase(encoded: 'xn--_-9sbaja.xn--21aa', decoded: 'бб_гг.ээ'),
+  TestCase(encoded: '.', decoded: '.'),
 ];

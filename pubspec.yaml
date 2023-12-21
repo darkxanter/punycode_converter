@@ -1,6 +1,6 @@
 name: punycode_converter
 description: A robust Punycode converter that fully complies to RFC 3492 and RFC 5891.
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/darkxanter/punycode_converter
 
 environment:
